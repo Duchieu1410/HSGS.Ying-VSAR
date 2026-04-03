@@ -4,11 +4,14 @@ import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import org.firstinspires.ftc.teamcode.mechanisms.MecanumDrive;
+import org.firstinspires.ftc.teamcode.mechanisms.TestBenchServo;
+
+import javax.crypto.ExemptionMechanismException;
 
 @TeleOp
 public class MecanumFieldOrientatedOpMode extends OpMode {
-    MecanumDrive drive = new MecanumDrive();
     double forward, strafe, rotate;
+    MecanumDrive drive = new MecanumDrive();
 
     @Override
     public void init() {
