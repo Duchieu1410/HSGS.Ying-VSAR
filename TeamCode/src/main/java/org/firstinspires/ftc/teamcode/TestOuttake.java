@@ -6,13 +6,14 @@ import org.firstinspires.ftc.teamcode.mechanisms.OuttakeControl;
 
 @TeleOp
 public class TestOuttake extends OpMode {
-    OuttakeControl out = new OuttakeControl();
+    OuttakeControl out = new OuttakeControl();   // single instance, two motors inside
 
     static final int POS_BASE = 0;
-    static final int POS_MAX  = 1500;
-    static final int POS_LP   = 1300;
-    static final int POS_MP   = 2000;
-    static final int POS_HP   = 3000;
+    static final int POS_LP   = 100;
+    static final int POS_MP   = 150;
+    static final int POS_HP   = 250;
+
+    static final int encoderRatio1 = 1, encoderRatio2 = 5;
 
     boolean prevA = false, prevB = false, prevX = false, prevY = false;
     boolean prevDpadLeft = false, prevDpadDown = false,
@@ -28,39 +29,34 @@ public class TestOuttake extends OpMode {
 
     @Override
     public void init() {
-        out.init(hardwareMap);
+        out.init(hardwareMap, "right_outtake", "left_outtake", false, true, encoderRatio1, encoderRatio2);
         currentState = OUTSTATE.POSITIONAL;
     }
 
     @Override
     public void loop() {
-        // ── Timeout safety ────────────────────────────────────────────
-//        if (out.checkElapsedTime()) out.resetMotor();
-
         // ── Mode switching ────────────────────────────────────────────
         if (gamepad1.dpad_left  && !prevDpadLeft)  flipState();
-        if (gamepad1.dpad_right && !prevDpadRight) out.resetEncoder();
+        if (gamepad1.dpad_right && !prevDpadRight)  out.resetEncoder();
 
         // ── State machine ─────────────────────────────────────────────
         if (currentState == OUTSTATE.POSITIONAL) {
-//            if (out.checkElapsedTime()) {
-//                out.resetMotor();
-//            }
-
             if (gamepad1.a && !prevA) out.moveOuttakeTo(POS_LP);
             if (gamepad1.b && !prevB) out.moveOuttakeTo(POS_MP);
             if (gamepad1.x && !prevX) out.moveOuttakeTo(POS_HP);
             if (gamepad1.y && !prevY) out.moveOuttakeTo(POS_BASE);
 
-            // ★ Drive the PID every loop iteration
             out.updatePID();
 
-            telemetry.addData("Target position",   out.getTargetPosition());
-            telemetry.addData("Current position",  out.outtakeMotor1.getCurrentPosition());
-            telemetry.addData("Error",
-                    out.getTargetPosition() - out.outtakeMotor1.getCurrentPosition());
-            telemetry.addData("maxPower", out.maxPower);
-            telemetry.addData("toleranceL", out.TOLERANCE_L);
+            int pos1 = out.outtakeMotor1.getCurrentPosition() / encoderRatio1;
+            int pos2 = out.outtakeMotor2.getCurrentPosition() / encoderRatio2;
+
+            telemetry.addData("Target",     out.getTargetPosition());
+            telemetry.addData("Pos motor1", pos1);
+            telemetry.addData("Pos motor2", pos2);
+            telemetry.addData("Skew",       pos1 - pos2);
+            telemetry.addData("Error",      out.getTargetPosition() - (pos1 + pos2) / 2.0);
+//            telemetry.addData("maxPower",   out.maxPower);
 
         } else {
             double joystick_y = -gamepad1.right_stick_y;
@@ -69,21 +65,20 @@ public class TestOuttake extends OpMode {
 
             out.moveOuttakeJoystick(joystick_y);
 
-            telemetry.addData("Joystick Y",       joystick_y);
-            telemetry.addData("Dampen movement",  out.dampenMovement);
-            telemetry.addData("Power: ", joystick_y * out.dampenMovement);
+            telemetry.addData("Joystick Y",  joystick_y);
+            telemetry.addData("Dampen",      out.dampenMovement);
         }
 
-        telemetry.addData("State",            currentState);
-        telemetry.addData("Encoder position", out.outtakeMotor1.getCurrentPosition());
+        telemetry.addData("State",   currentState);
+//        telemetry.addData("TOLERANCE_L", out.TOLERANCE_L);
 
-        prevA          = gamepad1.a;
-        prevB          = gamepad1.b;
-        prevX          = gamepad1.x;
-        prevY          = gamepad1.y;
-        prevDpadLeft   = gamepad1.dpad_left;
-        prevDpadDown   = gamepad1.dpad_down;
-        prevDpadUp     = gamepad1.dpad_up;
-        prevDpadRight  = gamepad1.dpad_right;
+        prevA         = gamepad1.a;
+        prevB         = gamepad1.b;
+        prevX         = gamepad1.x;
+        prevY         = gamepad1.y;
+        prevDpadLeft  = gamepad1.dpad_left;
+        prevDpadDown  = gamepad1.dpad_down;
+        prevDpadUp    = gamepad1.dpad_up;
+        prevDpadRight = gamepad1.dpad_right;
     }
 }

@@ -71,13 +71,8 @@ public class MecanumDrive {
 
         double newForward = r * Math.sin(theta),
                 newStrafe = r * Math.cos(theta);
-
-//        System.out.println("Previous fsr: " + forward + " " + strafe + " " + rotate);
-//        System.out.println("Angle theta: " + theta);
-//        System.out.println(Math.hypot(1.0, 0.0));
-//        System.out.println("Hypotenuse length: " + r);
-//        System.out.println("new fsr: " + newForward + " " + newStrafe + " " + rotate);
-
         this.drive(newForward, newStrafe, rotate);
     }
 }
+
+

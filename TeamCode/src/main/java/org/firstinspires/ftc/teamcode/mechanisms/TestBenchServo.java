@@ -8,8 +8,9 @@ public class TestBenchServo {
 
     private Servo servoPos;
 
-    public void init(HardwareMap hwMap) {
-        servoPos = hwMap.get(Servo.class, "s_pos");
+    public void init(HardwareMap hwMap, String deviceName) {
+        servoPos = hwMap.get(Servo.class, deviceName);
+        servoPos.setPosition(0);
     }
 
     public void setServoPos(double angle) {

@@ -1,143 +1,185 @@
 package org.firstinspires.ftc.teamcode.mechanisms;
 
-import com.qualcomm.robotcore.hardware.DcMotorSimple;
-import com.qualcomm.robotcore.util.ElapsedTime;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
+import com.qualcomm.robotcore.util.ElapsedTime;
 
 public class OuttakeControl {
-    public DcMotor outtakeMotor1;
+    public DcMotor outtakeMotor1;   // e.g. right
+    public DcMotor outtakeMotor2;   // e.g. left
+
     public double dampenMovement = 0.7;
-    final double maxElapsedTime = 10.0;
+    private int encoderRatio1 = 1, encoderRatio2 = 1;
 
-    // 0.7 - 0.5 is okay
-    final double LIFT_POWER = 1;
-    final double LOWER_POWER = 0.75;
-    public double maxPower = 0.5;
+    private static final double LIFT_POWER  = 0.25;
+    private static final double LOWER_POWER = 0.4;
+    private static final double NEAR_TARGET_POWER = 0.15;
 
-    // ── PID gains ── tweak these on the robot ──────────────────────────
-    // kP: main driving force toward target. raise if too slow, lower if oscillating
-    // kI: corrects steady-state error (gravity hold). keep small to avoid windup
-    // kD: damps overshoot. raise if it oscillates around target
-    // TOLERANCE: deadband in ticks — motor shuts off inside this window
-    private static double kP = 0.018;
-    private static double kI = 0.0008;
-    private static double kD = 0;
-    private static final int LIFT_TOLERANCE_L = 0, LIFT_TOLERANCE_R = 50;
-    private static final int LOWER_TOLERANCE_L = -5, LOWER_TOLERANCE_R = 5;
-    public static int    TOLERANCE_L, TOLERANCE_R;      // ticks
-    // ──────────────────────────────────────────────────────────────────
+    private static final double kP    = 0.018;
+    private static final double kI    = 0.0008;
+    private static final double kD    = 0.0000;
+    private static final double kSYNC = 0.01;
 
-    private int    targetPosition  = 0;
-    private double integralSum     = 0;
-    private double lastError       = 0;
-    private boolean pidActive      = false;
+    private static final int POSITION_TOLERANCE = 10;   // target error tolerance
+    private static final int SYNC_TOLERANCE = 2;        // motor-to-motor mismatch tolerance
+    private static final double MAX_INTEGRAL = 300.0;   // anti-windup
+    private static final double MAX_SYNC_CORRECTION = 0.30;
+
+    private int targetPosition = 0;
+    private double integralSum = 0;
+    private double lastError = 0;
+    private boolean pidActive = false;
+
+    private double currentMaxPower = LIFT_POWER;
 
     private final ElapsedTime pidTimer  = new ElapsedTime();
-    public  final ElapsedTime liftTimer = new ElapsedTime();
+    public final ElapsedTime liftTimer = new ElapsedTime();
 
-    public void init(HardwareMap hwMap) {
-        outtakeMotor1 = hwMap.get(DcMotor.class, "fr_motor");
-        outtakeMotor1.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        outtakeMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        outtakeMotor1.setDirection(DcMotorSimple.Direction.REVERSE);
-//        kD = 0;
-//        kP = 0;
-//        kI = 0;
+    public void init(HardwareMap hwMap,
+                     String motor1Name,
+                     String motor2Name,
+                     boolean reverse1,
+                     boolean reverse2,
+                     int ratio1,
+                     int ratio2) {
+
+        outtakeMotor1 = hwMap.get(DcMotor.class, motor1Name);
+        outtakeMotor2 = hwMap.get(DcMotor.class, motor2Name);
+
+        encoderRatio1 = Math.max(1, ratio1);
+        encoderRatio2 = Math.max(1, ratio2);
+
+        for (DcMotor m : new DcMotor[]{outtakeMotor1, outtakeMotor2}) {
+            m.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+            m.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        }
+
+        outtakeMotor1.setDirection(reverse1 ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
+        outtakeMotor2.setDirection(reverse2 ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD);
     }
 
-    // ── Call this every loop() iteration when in POSITIONAL state ─────
+    private boolean checkError(double error) {
+        if (targetPosition == 0) {
+            if (error >= -2 && error <= 10) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            return Math.abs(error) <= POSITION_TOLERANCE;
+        }
+    }
+
     public void updatePID() {
-        if (!pidActive) return;
+        if (!pidActive || outtakeMotor1 == null || outtakeMotor2 == null) return;
 
-        double dt    = pidTimer.seconds();
+        double dt = pidTimer.seconds();
         pidTimer.reset();
+        if (dt < 0.005) dt = 0.005;
 
-        int    currentPos = outtakeMotor1.getCurrentPosition();
-        double error      = targetPosition - currentPos;
+        int pos1 = outtakeMotor1.getCurrentPosition() / encoderRatio1;
+        int pos2 = outtakeMotor2.getCurrentPosition() / encoderRatio2;
 
-        // Inside tolerance → stop and hold with brake
-        if (TOLERANCE_L <= error && error <= TOLERANCE_R) {
-            outtakeMotor1.setPower(0);   // BRAKE behaviour keeps it still
+        double avgPos = (pos1 + pos2) / 2.0;
+        double error = targetPosition - avgPos;
+        double skewError = pos1 - pos2;
+
+        // Stop when both the average target and the motor mismatch are small
+        if (checkError(error) && Math.abs(skewError) <= SYNC_TOLERANCE) {
+            stopMotors();
             integralSum = 0;
-            lastError   = 0;
+            lastError = 0;
             return;
         }
 
-        // Clamp integral to prevent windup (max ±50 ticks worth)
+        // PID on the average position
         integralSum += error * dt;
-        integralSum  = Math.max(-50 / kI, Math.min(50 / kI, integralSum));
+        integralSum = clamp(integralSum, -MAX_INTEGRAL, MAX_INTEGRAL);
 
-        double derivative = (dt > 0) ? (error - lastError) / dt : 0;
+        double derivative = (error - lastError) / dt;
         lastError = error;
 
-        double power = kP * error
-                + kI * integralSum
-                + kD * derivative;
+        double basePower = kP * error + kI * integralSum + kD * derivative;
 
-        // Clamp output to safe range
-        power = Math.max(-1.0, Math.min(1.0, power));
-
-        if (Math.abs(error) <= 30) { // Lower max power when closing in on
-            maxPower = 0.15;
+        // Use lower output near the target, but do not permanently modify the field
+        double maxOutput = currentMaxPower;
+        if (Math.abs(error) <= 18) {
+            maxOutput = Math.min(maxOutput, NEAR_TARGET_POWER);
         }
 
-        if (power < 0) {
-            power = Math.max(power, -maxPower);
-        } else {
-            power = Math.min(power, maxPower);
-        }
+        basePower = clamp(basePower, -maxOutput, maxOutput);
 
-        outtakeMotor1.setPower(power);
+        // Sync correction: keep the motors aligned with each other
+        double correction = clamp(kSYNC * skewError, -MAX_SYNC_CORRECTION, MAX_SYNC_CORRECTION);
+
+        // If one motor is mounted the opposite way, swap the signs here.
+        double power1 = clamp(basePower - correction, -maxOutput, maxOutput);
+        double power2 = clamp(basePower + correction, -maxOutput, maxOutput);
+
+        outtakeMotor1.setPower(power1);
+        outtakeMotor2.setPower(power2);
     }
 
-    // ── Set a new target; PID loop takes over from here ───────────────
     public void moveOuttakeTo(int position) {
-        if (position == 0) {
-            TOLERANCE_L = LOWER_TOLERANCE_L;
-            TOLERANCE_R = LOWER_TOLERANCE_R;
-            maxPower = LOWER_POWER;
-        } else {
-            TOLERANCE_L = LIFT_TOLERANCE_L;
-            TOLERANCE_R = LIFT_TOLERANCE_R;
-            maxPower = LIFT_POWER;
-        }
+        currentMaxPower = (position == 0) ? LOWER_POWER : LIFT_POWER;
+
         targetPosition = position;
-        integralSum    = 0;
-        lastError      = 0;
-        pidActive      = true;
+        integralSum = 0;
+        lastError = 0;
+        pidActive = true;
+
         liftTimer.reset();
         pidTimer.reset();
+
         outtakeMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        outtakeMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
     }
 
-    public int  getTargetPosition()  { return targetPosition; }
-    public boolean isPidActive()     { return pidActive; }
-
-    // ── Joystick control (disables PID) ───────────────────────────────
     public void moveOuttakeJoystick(double power) {
         pidActive = false;
-        outtakeMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        integralSum = 0;
+        lastError = 0;
 
-        outtakeMotor1.setPower(power * dampenMovement);
+        outtakeMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        outtakeMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+
+        double out = power * dampenMovement;
+        outtakeMotor1.setPower(out);
+        outtakeMotor2.setPower(out);
     }
 
-    // ── Utilities ─────────────────────────────────────────────────────
     public void resetEncoder() {
-        outtakeMotor1.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
-        outtakeMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        for (DcMotor m : new DcMotor[]{outtakeMotor1, outtakeMotor2}) {
+            m.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            m.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        }
         targetPosition = 0;
-        integralSum    = 0;
-        lastError      = 0;
+        integralSum = 0;
+        lastError = 0;
     }
 
-    public boolean checkElapsedTime() {
-        return liftTimer.seconds() > maxElapsedTime;
+    public int getTargetPosition() {
+        return targetPosition;
+    }
+
+    public boolean isPidActive() {
+        return pidActive;
     }
 
     public void resetMotor() {
         pidActive = false;
-        outtakeMotor1.setPower(0);
+        stopMotors();
         outtakeMotor1.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+        outtakeMotor2.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
+    }
+
+    private void stopMotors() {
+        outtakeMotor1.setPower(0);
+        outtakeMotor2.setPower(0);
+    }
+
+    private double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }
