@@ -6,9 +6,9 @@ import com.qualcomm.robotcore.hardware.HardwareMap;
 
 public class ContinuousMotor {
     private DcMotor motor;
-    private int power = 0;
+    private float power = 0;
 
-    public void init(HardwareMap hwMap, String motorName, boolean reverseMotor, int motorPower) {
+    public void init(HardwareMap hwMap, String motorName, boolean reverseMotor, float motorPower) {
         motor = hwMap.get(DcMotor.class, motorName);
 
         if (reverseMotor) {
@@ -18,7 +18,7 @@ public class ContinuousMotor {
         power = motorPower;
     }
 
-    public void modifyPower(int newPower) {
+    public void modifyPower(float newPower) {
         power = newPower;
     }
 

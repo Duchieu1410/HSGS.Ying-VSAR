@@ -9,11 +9,11 @@ public class OuttakeControl {
     public DcMotor outtakeMotor1;   // e.g. right
     public DcMotor outtakeMotor2;   // e.g. left
 
-    public double dampenMovement = 0.7;
+    public double dampenMovement = 0.15;
     private int encoderRatio1 = 1, encoderRatio2 = 1;
 
-    private static final double LIFT_POWER  = 0.25;
-    private static final double LOWER_POWER = 0.4;
+    private static final double LIFT_POWER  = 0.35;
+    private static final double LOWER_POWER = 0.2;
     private static final double NEAR_TARGET_POWER = 0.15;
 
     private static final double kP    = 0.018;
@@ -30,6 +30,7 @@ public class OuttakeControl {
     private double integralSum = 0;
     private double lastError = 0;
     private boolean pidActive = false;
+    public boolean reachedTarget = true;
 
     private double currentMaxPower = LIFT_POWER;
 
@@ -90,6 +91,7 @@ public class OuttakeControl {
             stopMotors();
             integralSum = 0;
             lastError = 0;
+            reachedTarget = true;
             return;
         }
 
@@ -117,6 +119,7 @@ public class OuttakeControl {
         double power1 = clamp(basePower - correction, -maxOutput, maxOutput);
         double power2 = clamp(basePower + correction, -maxOutput, maxOutput);
 
+        reachedTarget = false;
         outtakeMotor1.setPower(power1);
         outtakeMotor2.setPower(power2);
     }
