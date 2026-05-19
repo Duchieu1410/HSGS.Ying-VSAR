@@ -17,7 +17,7 @@ public class HeadControl extends OpMode {
 
     @Override
     public void init() {
-        boxServo.init(hardwareMap, "s_pos");
+        boxServo.init(hardwareMap, "s_pos", 0.25);
         blockServo.init(hardwareMap, "block_servo");
     }
 
@@ -26,11 +26,12 @@ public class HeadControl extends OpMode {
         telemetry.addData("Right trigger: ", gamepad1.right_trigger);
         telemetry.addData("Left trigger: ", gamepad1.left_trigger);
         telemetry.addData("Counter: ", counter);
+        telemetry.addData("Servo position: ", boxServo.getServoPos());
         if (!prevL && gamepad1.left_bumper) {
             boxServo.setServoPos(0.25);
         }
         if (!prevR && gamepad1.right_bumper) {
-            boxServo.setServoPos(0.75);
+            boxServo.setServoPos(1);
         }
 
         if (prevRT == 0.0 && gamepad1.right_trigger > 0) {

@@ -22,7 +22,7 @@ public class OuttakeControl {
     private static final double kSYNC = 0.01;
 
     private static final int POSITION_TOLERANCE = 10;   // target error tolerance
-    private static final int SYNC_TOLERANCE = 2;        // motor-to-motor mismatch tolerance
+    private static final int SYNC_TOLERANCE = 5;        // motor-to-motor mismatch tolerance
     private static final double MAX_INTEGRAL = 300.0;   // anti-windup
     private static final double MAX_SYNC_CORRECTION = 0.30;
 
@@ -61,7 +61,7 @@ public class OuttakeControl {
     }
 
     private boolean checkError(double error) {
-        if (targetPosition == 0) {
+        if (targetPosition <= 0) {
             if (error >= -2 && error <= 10) {
                 return true;
             } else {
@@ -168,6 +168,14 @@ public class OuttakeControl {
 
     public boolean isPidActive() {
         return pidActive;
+    }
+
+    public double getEncoderPosition() {
+        int pos1 = outtakeMotor1.getCurrentPosition() / encoderRatio1;
+        int pos2 = outtakeMotor2.getCurrentPosition() / encoderRatio2;
+
+        double avgPos = (pos1 + pos2) / 2.0;
+        return avgPos;
     }
 
     public void resetMotor() {

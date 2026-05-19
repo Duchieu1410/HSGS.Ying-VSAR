@@ -27,9 +27,10 @@ public class FullTeleOp extends OpMode {
 
     static final int POS_BASE = 0;
     static final int POS_UP = 15;
-    static final int POS_LP   = 100;
-    static final int POS_MP   = 150;
-    static final int POS_HP   = 250;
+    static final int POS_DOWN = -15;
+    static final int POS_LP   = 60;
+    static final int POS_MP   = 200;
+    static final int POS_HP   = 255;
 
     static final int encoderRatio1 = 1, encoderRatio2 = 5;
 
@@ -49,30 +50,36 @@ public class FullTeleOp extends OpMode {
         drive.init(hardwareMap);
         out.init(hardwareMap, "right_outtake", "left_outtake", false, true, encoderRatio1, encoderRatio2);
         currentState = OUTSTATE.POSITIONAL;
-        boxServo.init(hardwareMap, "s_pos");
+        boxServo.init(hardwareMap, "s_pos", 0.30);
         blockServo.init(hardwareMap, "block_servo");
-        intake.init(hardwareMap, "intake_motor", true, 1);
+        intake.init(hardwareMap, "intake_motor", true, 1f);
     }
 
     public void loop() {
-        intake.runMotor();
-        if (gamepad1.dpad_down) {
-            drive.maxSpeed = Math.max(0.0, drive.maxSpeed - 0.01);
-        } else if (gamepad1.dpad_up) {
-            drive.maxSpeed = Math.min(1.0, drive.maxSpeed + 0.01);
+        if (out.getEncoderPosition() <= 15.0) {
+            intake.modifyPower(1f);
         }
+        else {
+            intake.modifyPower(0f);
+        }
+        intake.runMotor();
+//        if (gamepad1.dpad_down) {
+//            drive.maxSpeed = Math.max(0.0, drive.maxSpeed - 0.01);
+//        } else if (gamepad1.dpad_up) {
+//            drive.maxSpeed = Math.min(1.0, drive.maxSpeed + 0.01);
+//        }
 
         forward = -gamepad1.left_stick_y;
         strafe = gamepad1.left_stick_x;
         rotate = gamepad1.right_stick_x;
 
         telemetry.addData("forward = ", forward);
-        telemetry.addData("strafe = ", strafe);
+
         telemetry.addData("Max speed = ", drive.maxSpeed);
 
         drive.driveFieldRelative(forward, strafe, rotate);
 
-        if (gamepad1.dpad_left  && !prevDpadLeft)  flipState();
+//        if (gamepad1.dpad_left  && !prevDpadLeft)  flipState();
         if (gamepad1.dpad_right && !prevDpadRight)  out.resetEncoder();
 
         // ── State machine ─────────────────────────────────────────────
@@ -82,6 +89,7 @@ public class FullTeleOp extends OpMode {
             if (gamepad1.x && !prevX) out.moveOuttakeTo(POS_HP);
             if (gamepad1.y && !prevY) out.moveOuttakeTo(POS_BASE);
             if (gamepad1.dpad_up && !prevDpadUp) out.moveOuttakeTo(POS_UP);
+            if (gamepad1.dpad_down && !prevDpadDown) out.moveOuttakeTo(POS_DOWN);
 
             out.updatePID();
 
@@ -109,27 +117,21 @@ public class FullTeleOp extends OpMode {
         telemetry.addData("State",   currentState);
 //        telemetry.addData("TOLERANCE_L", out.TOLERANCE_L);
 
-        prevA         = gamepad1.a;
-        prevB         = gamepad1.b;
-        prevX         = gamepad1.x;
-        prevY         = gamepad1.y;
-        prevDpadLeft  = gamepad1.dpad_left;
-        prevDpadDown  = gamepad1.dpad_down;
-        prevDpadUp    = gamepad1.dpad_up;
-        prevDpadRight = gamepad1.dpad_right;
-
         if (!prevL && gamepad1.left_bumper) {
-            boxServo.setServoPos(0.25);
+            boxServo.setServoPos(0.30);
         }
         if (!prevR && gamepad1.right_bumper) {
-            boxServo.setServoPos(0.75);
+            boxServo.setServoPos(1);
+        }
+        if (!prevDpadLeft && gamepad1.dpad_left) {
+            boxServo.setServoPos(0.1);
         }
 
         if (prevRT == 0 && gamepad1.right_trigger > 0) {
-            blockServo.setServoPos(0.5);
+            blockServo.flipState();
         }
         if (prevLT == 0 && gamepad1.left_trigger > 0) {
-            blockServo.setServoPos(0);
+            blockServo.setServoPos(0.07);
         }
 
         boxServo.update();
@@ -138,5 +140,13 @@ public class FullTeleOp extends OpMode {
         prevR = gamepad1.right_bumper;
         prevRT = gamepad1.right_trigger;
         prevLT = gamepad1.left_trigger;
+        prevA         = gamepad1.a;
+        prevB         = gamepad1.b;
+        prevX         = gamepad1.x;
+        prevY         = gamepad1.y;
+        prevDpadLeft  = gamepad1.dpad_left;
+        prevDpadDown  = gamepad1.dpad_down;
+        prevDpadUp    = gamepad1.dpad_up;
+        prevDpadRight = gamepad1.dpad_right;
     }
 }

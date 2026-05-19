@@ -10,13 +10,13 @@ public class TestBenchServo {
     private double targetPos = 0;
     private double startPos = 0;
     private long moveStartTime = -1;
-    private long moveDurationMs = 1000;
+    private long moveDurationMs = 1500;
 
-    public void init(HardwareMap hwMap, String deviceName) {
+    public void init(HardwareMap hwMap, String deviceName, double origin) {
         servoPos = hwMap.get(Servo.class, deviceName);
-        servoPos.setPosition(0.25);
-        currentPos = 0.25;
-        targetPos = 0.25;
+        servoPos.setPosition(origin);
+        currentPos = origin;
+        targetPos = origin;
     }
 
     public void setServoPos(double target) {
@@ -42,5 +42,9 @@ public class TestBenchServo {
             currentPos = startPos + t * (targetPos - startPos);
         }
         servoPos.setPosition(currentPos);
+    }
+
+    public double getServoPos() {
+        return servoPos.getPosition();
     }
 }

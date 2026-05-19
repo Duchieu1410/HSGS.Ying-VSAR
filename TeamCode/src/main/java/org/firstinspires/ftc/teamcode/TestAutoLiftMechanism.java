@@ -50,7 +50,7 @@ public class TestAutoLiftMechanism extends OpMode {
     private STATE liftState = STATE.BASE;
     private final ElapsedTime moveStopTimer = new ElapsedTime();
     private static final double DRIVE_DEADBAND = 0.06;
-    private static final double STOP_SETTLE_MS = 100;
+    private static final double STOP_SETTLE_MS = 1000   ;
 
     public void flipState() {
         currentState = (currentState == OUTSTATE.POSITIONAL)
@@ -61,7 +61,7 @@ public class TestAutoLiftMechanism extends OpMode {
         drive.init(hardwareMap);
         out.init(hardwareMap, "right_outtake", "left_outtake", false, true, encoderRatio1, encoderRatio2);
         currentState = OUTSTATE.POSITIONAL;
-        boxServo.init(hardwareMap, "s_pos");
+        boxServo.init(hardwareMap, "s_pos", 0.25);
         blockServo.init(hardwareMap, "block_servo");
         intake.init(hardwareMap, "intake_motor", true, 1);
 
